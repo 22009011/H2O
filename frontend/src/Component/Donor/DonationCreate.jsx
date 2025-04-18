@@ -251,9 +251,14 @@ const DonationCreate = () => {
           if (key === 'image' && formData[key]) {
             formDataToSend.append('image', formData[key]);
           } else {
-            formDataToSend.append(key, formData[key].toString());
+            // Handle null/undefined values
+            const value = formData[key];
+            formDataToSend.append(key, value === null || value === undefined ? '' : value.toString());
           }
         });
+        
+        // Log form data for debugging
+        console.log('Submitting form data:', Object.fromEntries(formDataToSend));
         
         const response = await axios.post(
           'http://localhost:5000/api/donations', 
@@ -271,7 +276,9 @@ const DonationCreate = () => {
         }
       } catch (error) {
         console.error('Error submitting donation:', error);
-        alert('Failed to submit donation. Please try again.');
+        // More detailed error message
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to submit donation';
+        alert(errorMessage);
       } finally {
         setIsSubmitting(false);
       }

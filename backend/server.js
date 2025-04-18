@@ -111,17 +111,43 @@ app.post('/api/donations', upload.single('image'), async (req, res) => {
       zipCode,
       specialInstructions
     } = req.body;
-    
-    // Combine date and time into datetime
-    const expiryDatetime = `${expiryDate} ${expiryTime}`;
-    const pickupStartDatetime = `${pickupStartDate} ${pickupStartTime}`;
-    const pickupEndDatetime = `${pickupEndDate} ${pickupEndTime}`;
+
+    // Validate required fields
+    if (!foodType || !quantity || !unit || !address || !city || !zipCode) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields'
+      });
+    }
+
+    // Safely combine date and time, defaulting to null if either is missing
+    const expiryDatetime = (expiryDate && expiryTime) ? `${expiryDate} ${expiryTime}` : null;
+    const pickupStartDatetime = (pickupStartDate && pickupStartTime) ? `${pickupStartDate} ${pickupStartTime}` : null;
+    const pickupEndDatetime = (pickupEndDate && pickupEndTime) ? `${pickupEndDate} ${pickupEndTime}` : null;
 
     // Get image URL if uploaded
     const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
     
-    // Convert string to boolean
+    // Convert string to boolean, default to false
     const recurring = isRecurring === 'true' || isRecurring === true;
+
+    // Log the data being inserted
+    console.log('Inserting donation:', {
+      foodType,
+      description,
+      quantity,
+      unit,
+      imageUrl,
+      expiryDatetime,
+      pickupStartDatetime,
+      pickupEndDatetime,
+      recurring,
+      recurringFrequency,
+      address,
+      city,
+      zipCode,
+      specialInstructions
+    });
 
     // Insert into database
     const [result] = await pool.execute(
@@ -132,10 +158,20 @@ app.post('/api/donations', upload.single('image'), async (req, res) => {
         address, city, zip_code, special_instructions
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        foodType, description, quantity, unit,
-        imageUrl, expiryDatetime, pickupStartDatetime,
-        pickupEndDatetime, recurring, recurring ? recurringFrequency : null,
-        address, city, zipCode, specialInstructions
+        foodType,
+        description || null,
+        quantity,
+        unit,
+        imageUrl,
+        expiryDatetime,
+        pickupStartDatetime,
+        pickupEndDatetime,
+        recurring,
+        recurring ? recurringFrequency : null,
+        address,
+        city,
+        zipCode,
+        specialInstructions || null
       ]
     );
     
@@ -200,6 +236,82 @@ app.get('/api/donations', async (req, res) => {
       message: 'Failed to fetch donations',
       error: error.message
     });
+  }
+});
+
+// NEW: GET route to fetch district-wise donor details (using city as district)
+app.get('/api/donors', async (req, res) => {
+  const district = req.query.district;
+  if (!district) {
+    return res.status(400).json({ success: false, message: 'District is required' });
+  }
+  try {
+    const [rows] = await pool.execute(
+      'SELECT * FROM donations1 WHERE city = ? ORDER BY created_at DESC',
+      [district]
+    );
+    res.json({
+      success: true,
+      donors: rows
+    });
+  } catch (error) {
+    console.error('Error fetching donors:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch donors',
+      error: error.message
+    });
+  }
+});
+
+// NEW: POST route to simulate notifying the social worker
+app.post('/api/notify-social-worker', async (req, res) => {
+  const { district } = req.body;
+  if (!district) {
+    return res.status(400).json({ success: false, message: 'District is required' });
+  }
+  
+  // Simulate notification (for example, sending email/sms to the social worker)
+  // and simulate acceptance by returning dummy social worker details.
+  const socialWorkerDetails = {
+    name: 'John Doe',
+    phone: '1234567890',
+    email: 'john.doe@example.com',
+    district: district
+  };
+
+  // In a real application, you could integrate a third-party notification service
+  // and then wait for the social worker to accept.
+  res.json({
+    success: true,
+    socialWorker: socialWorkerDetails,
+    message: 'Notification sent and accepted'
+  });
+});
+
+// PATCH - Update donation status (for social worker and picker)
+app.patch('/api/donations/:donation_id/status', async (req, res) => {
+  const donationId = req.params.donation_id; // Correct param name
+  const { status } = req.body;
+
+  if (!donationId || !status) {
+    return res.status(400).json({ error: 'donation_id and status are required' });
+  }
+
+  try {
+    const [result] = await pool.execute(
+      'UPDATE donations1 SET status = ? WHERE donation_id = ?',
+      [status, donationId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Donation not found' });
+    }
+
+    res.json({ message: 'Status updated successfully' });
+  } catch (err) {
+    console.error('Error updating donation status:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

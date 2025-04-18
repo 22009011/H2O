@@ -1,41 +1,11 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import './SocialWorkerDashboard.css';
 
 const SocialWorkerDashboard = () => {
   const [activeTab, setActiveTab] = useState('donations');
-  const [donations, setDonations] = useState([
-    {
-      id: 1,
-      donor: 'Community Kitchen',
-      foodType: 'Cooked Meals',
-      quantity: '25 containers',
-      pickupLocation: '123 Main St',
-      timeReceived: '2025-03-31 09:15',
-      priority: 'high',
-      status: 'pending',
-    },
-    {
-      id: 2,
-      donor: 'Fresh Mart',
-      foodType: 'Vegetables & Fruits',
-      quantity: '5 boxes',
-      pickupLocation: '456 Market Ave',
-      timeReceived: '2025-03-31 10:30',
-      priority: 'medium',
-      status: 'pending',
-    },
-    {
-      id: 3,
-      donor: 'Bread & Beyond',
-      foodType: 'Bakery Items',
-      quantity: '40 loaves',
-      pickupLocation: '789 Baker St',
-      timeReceived: '2025-03-30 16:45',
-      priority: 'low',
-      status: 'pending',
-    },
-  ]);
-  
+  const [district, setDistrict] = useState('');
+  const [donations, setDonations] = useState([]);
   const [selectedDonation, setSelectedDonation] = useState(null);
   const [verificationChecklist, setVerificationChecklist] = useState({
     freshness: false,
@@ -86,49 +56,71 @@ const SocialWorkerDashboard = () => {
     return Object.values(verificationChecklist).every(item => item);
   };
 
-  const approveDonation = () => {
+  const approveDonation = async () => {
     if (!allChecklistItemsCompleted()) {
       alert('Please complete all verification checklist items before approving.');
       return;
     }
-    
-    const updatedDonations = donations.map(donation => {
-      if (donation.id === selectedDonation.id) {
-        return { ...donation, status: 'verified' };
-      }
-      return donation;
-    });
-    
-    setDonations(updatedDonations);
-    alert(`Notification sent to picker for donation #${selectedDonation.id}`);
-    setCurrentView('list');
-    setSelectedDonation(null);
+    if (!selectedDonation || !selectedDonation.donation_id) {
+      alert('Invalid donation selected.');
+      return;
+    }
+    console.log('Approving donation_id:', selectedDonation.donation_id);
+    try {
+      await axios.patch(
+        `http://localhost:5000/api/donations/${selectedDonation.donation_id}/status`,
+        { status: 'verified' }
+      );
+      const updatedDonations = donations.map(donation => {
+        if (donation.donation_id === selectedDonation.donation_id) {
+          return { ...donation, status: 'verified' };
+        }
+        return donation;
+      });
+      setDonations(updatedDonations);
+      alert(`Notification sent to picker for donation #${selectedDonation.donation_id}`);
+      setCurrentView('list');
+      setSelectedDonation(null);
+    } catch (error) {
+      alert('Failed to update status');
+    }
   };
 
-  const rejectDonation = () => {
+  const rejectDonation = async () => {
     if (!verificationNotes) {
       alert('Please provide rejection reason in the notes');
       return;
     }
-    
-    const updatedDonations = donations.map(donation => {
-      if (donation.id === selectedDonation.id) {
-        return { ...donation, status: 'rejected' };
-      }
-      return donation;
-    });
-    
-    setDonations(updatedDonations);
-    alert(`Donation #${selectedDonation.id} has been rejected`);
-    setCurrentView('list');
-    setSelectedDonation(null);
+    if (!selectedDonation || !selectedDonation.donation_id) {
+      alert('Invalid donation selected.');
+      return;
+    }
+    console.log('Rejecting donation_id:', selectedDonation.donation_id);
+    try {
+      await axios.patch(
+        `http://localhost:5000/api/donations/${selectedDonation.donation_id}/status`,
+        { status: 'rejected' }
+      );
+      const updatedDonations = donations.map(donation => {
+        if (donation.donation_id === selectedDonation.donation_id) {
+          return { ...donation, status: 'rejected' };
+        }
+        return donation;
+      });
+      setDonations(updatedDonations);
+      alert(`Donation #${selectedDonation.donation_id} has been rejected`);
+      setCurrentView('list');
+      setSelectedDonation(null);
+    } catch (error) {
+      alert('Failed to update status');
+    }
   };
 
   const renderDonationCard = (donation) => {
     return (
-      <div key={donation.id} className={`donation-card priority-${donation.priority}`}>
+      <div key={donation.donation_id} className={`donation-card priority-${donation.priority}`}>
         <div className="donation-card-header">
-          <span className="donation-id">#{donation.id}</span>
+          <span className="donation-id">#{donation.donation_id}</span>
           <span className={`priority-badge ${donation.priority}`}>
             {donation.priority}
           </span>
@@ -186,7 +178,7 @@ const SocialWorkerDashboard = () => {
         </div>
 
         <div className="donation-details">
-          <h4>Verifying Donation #{selectedDonation.id}</h4>
+          <h4>Verifying Donation #{selectedDonation.donation_id}</h4>
           <p><strong>Donor:</strong> {selectedDonation.donor}</p>
           <p><strong>Food Type:</strong> {selectedDonation.foodType}</p>
           <p><strong>Quantity:</strong> {selectedDonation.quantity}</p>
@@ -406,6 +398,35 @@ const SocialWorkerDashboard = () => {
     }
   };
 
+  // Fetch donations for selected district
+  const fetchDonations = async () => {
+    if (!district) {
+      alert('Please select a district');
+      return;
+    }
+    try {
+      const res = await axios.get(
+        `http://localhost:5000/api/donors?district=${encodeURIComponent(district)}`
+      );
+      if (res.data.success) {
+        // Map backend fields to frontend fields if needed
+        setDonations(res.data.donors.map(d => ({
+          donation_id: d.donation_id, // always map donation_id
+          donor: d.donor || d.address || 'Unknown',
+          foodType: d.food_type,
+          quantity: `${d.quantity} ${d.unit}`,
+          pickupLocation: d.address,
+          timeReceived: d.created_at || '',
+          priority: d.priority || 'medium',
+          status: d.status || 'pending',
+          // ...add other fields as needed
+        })));
+      }
+    } catch (err) {
+      alert('Failed to fetch donations');
+    }
+  };
+
   return (
     <div className="social-worker-dashboard mobile">
       <header className="dashboard-header">
@@ -421,6 +442,17 @@ const SocialWorkerDashboard = () => {
       </header>
 
       <main className="dashboard-content">
+        <div style={{ margin: '10px 0' }}>
+          <label>Select District: </label>
+          <select value={district} onChange={e => setDistrict(e.target.value)}>
+            <option value="">-- Select --</option>
+            <option value="Chennai">Chennai</option>
+            <option value="Coimbatore">Coimbatore</option>
+            <option value="Madurai">Madurai</option>
+            <option value="Tiruchirappalli">Tiruchirappalli</option>
+          </select>
+          <button onClick={fetchDonations}>Fetch Donations</button>
+        </div>
         {renderActiveTabContent()}
       </main>
 

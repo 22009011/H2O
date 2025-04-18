@@ -10,6 +10,7 @@ import Profile from './Component/Donor/Profile';
 import BeneficiaryRequestForm from './Component/Homes/BeneficiaryRequestForm';
 import DeliveryDashboard from './Component/Picker/DeliveryDashboard';
 import SocialWorkerDashboard from './Component/Socialworker/SocialWorkerDashboard';
+import DonorData from './Component/Donor/DonorData';
 import Home from './Component/Land/Home';
 
 function App() {
@@ -27,6 +28,7 @@ function App() {
           <Route path="/homes" element={<BeneficiaryRequestForm/>} />
           <Route path="/picker" element={<DeliveryDashboard/>} />
           <Route path="/social" element={<SocialWorkerDashboard/>} />
+          <Route path="/donor-data" element={<DonorData />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>

@@ -5,6 +5,7 @@ import BeneficiaryRequestForm from '../Homes/BeneficiaryRequestForm';
 import DeliveryDashboard from '../Picker/DeliveryDashboard';
 import SocialWorkerDashboard from '../Socialworker/SocialWorkerDashboard';
 import LocationFilter from './LocationFilter'; // Import the new filter component
+import { useNavigate } from 'react-router-dom'; // add useNavigate
 
 const Home = () => {
   // State to track which component to display
@@ -13,6 +14,7 @@ const Home = () => {
   const [filteredResults, setFilteredResults] = useState([]);
   // State to track if filters have been applied
   const [filtersApplied, setFiltersApplied] = useState(false);
+  const navigate = useNavigate(); // add useNavigate
   
   // Function to handle card clicks
   const handleCardClick = (component) => {
@@ -25,12 +27,16 @@ const Home = () => {
     setFiltersApplied(true);
   };
   
-  // Function to fetch data based on type
+  // Modified fetchData to route to DonorData for donors
   const fetchData = (type) => {
-    console.log(`Fetching ${type} data...`);
-    // Here you would typically make an API call
-    // Example: fetch(`/api/${type}`).then(res => res.json()).then(data => console.log(data));
-    alert(`Fetching ${type} data`);
+    if (type === 'donors') {
+      // Navigate to the DonorData page in the Donor component
+      navigate('/donor-data');
+    } else {
+      console.log(`Fetching ${type} data...`);
+      // ...existing API call logic or alert...
+      alert(`Fetching ${type} data`);
+    }
   };
   
   // Function to render the active component
